@@ -98,19 +98,23 @@ export default class CustomJS extends Integration {
           "getComputedStyle(document.documentElement).getPropertyValue('--riff-accent').trim() || ''",
           true,
         );
-        // NUKE FLAG (2026-11-07): cuando el auto-heal L3 del visualizer
-        // decide que el pipeline de webaudio esta irrecuperable, deja
-        // __riffNukeRequest (Date.now) y el main fuerza el crash del
-        // renderer — YTMDA auto-recrea la vista SIN beforeunload (no
-        // aparece el dialog "Leave site?").
+        // NUKE FLAG (2026-11-07): el auto-heal L3 del visualizer deja
+        // __riffNukeRequest (Date.now) cuando el pipeline webaudio es
+        // irrecuperable (v.2: evaluando cada 2s por wall-clock — 12s
+        // de silencio REAL antes de nuke, nunca por silencios cortos).
+        // EL MAIN hace loadURL completo del webview — crash del
+        // renderer dejaba la vista muerta (input congelado); loadURL
+        // con nuestro handler will-prevent-unload no muestra dialogs
+        // y la integracion re-inyecta todo en dom-ready.
         try {
           const nuke: number = await view.webContents.executeJavaScript(
             "window.__riffNukeRequest || 0", true,
           );
           if (nuke && nuke > (this.lastNukeTs || 0)) {
             this.lastNukeTs = nuke;
-            console.log("[CustomJS] NUKE request visualizada:", new Date(nuke).toISOString(), "- forzando crash-reset del renderer");
-            view.webContents.forcefullyCrashRenderer();
+            console.log("[CustomJS] NUKE request visualizada:", new Date(nuke).toISOString(), "- loadURL completo del webview");
+            view.webContents.stop();
+            view.webContents.loadURL("https://music.youtube.com/");
             return;
           }
         } catch (nErr: any) {

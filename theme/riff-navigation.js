@@ -523,49 +523,51 @@
         analyser.getByteFrequencyData(dataArray);
         const accent = window.__riffAccent;
 
-        // --- AUTO-HEAL (fix visualizador-muerto 2) — ESCALADO:
-        // L1 re-cablea la cadena (source -> EQ -> analyser -> dest).
-        // L2 si el silencio persiste 3 rondas seguidas (los errores
-        // "AudioContext encountered an error from the audio device" +
-        // carreras de "Network service crashed" dejan el render dead
-        // sin remedio de cableado): NUCLEAR —— reload() del webview.
-        // El playback se re-arranca desde 0 (la AppWindow recupera el
-        // track y la posición via PlayerState de YTMDA), y el pipeline
-        // de audio renace limpio. Solo si el audio está avanzando y
-        // currentTime progresa.
+        // --- AUTO-HEAL (fix visualizador-muerto) — CON GATE DE RELOJ:
+        // v2-initialized-per-frame (streaks por frame de rAF disparaban
+        // el NUKE con los silencios cortos del audio — lo que freezaba
+        // la app). Evaluacion ahora cada 2s por wall-clock, NUKE solo
+        // tras 12s seguidos de silencio REAL (audio avanzando).
         try {
-          const vEl = window.__riffVisSrcEl || document.querySelector('video');
-          if (vEl && !vEl.paused) {
-            const nowT = vEl.currentTime;
-            if (window.__riffVisLastT !== undefined && nowT > window.__riffVisLastT) {
-              let nz = 0;
-              for (let i = 0; i < bufferLength; i++) { if (dataArray[i] > 0) { nz++; break; } }
-              if (nz === 0) {
-                const streak = (window.__riffVisSilenceStreak || 0) + 1;
-                window.__riffVisSilenceStreak = streak;
-                window.__riffVisHealT = nowT;
-                if (streak <= 2) {
-                  try { window.__riffSource.disconnect(); } catch (_) {}
-                  try { analyser.disconnect(); } catch (_) {}
-                  let prev = window.__riffSource;
-                  const eqf = window.__riffEQFilters || [];
-                  for (const fb of eqf) { prev.connect(fb); prev = fb; }
-                  prev.connect(analyser);
-                  try { analyser.connect(actx.destination); } catch (_) {}
-                  if (actx.state !== 'running') { try { actx.resume(); } catch (_) {} }
-                  console.warn('[Riff Visualizer] auto-heal L1: cadena re-cableada (silent streak ' + streak + ')');
-                } else if (streak === 3) {
-                  // NUKE: el render de webaudio está muerto por dentro —
-                  // reload del webview reinicializa el pipeline limpio.
-                  console.warn('[Riff Visualizer] auto-heal L3: pipeline irrecuperable — reload() del webview');
+          const nowMs = Date.now();
+          if (!window.__riffVisLastCheck || (nowMs - window.__riffVisLastCheck) >= 2000) {
+            window.__riffVisLastCheck = nowMs;
+            const vEl = window.__riffVisSrcEl || document.querySelector('video');
+            if (vEl && !vEl.paused) {
+              const nowT = vEl.currentTime;
+              const advancing = nowT > (window.__riffVisLastT || nowT - 1);
+              window.__riffVisLastT = nowT;
+              if (advancing) {
+                let nz = 0;
+                for (let i = 0; i < bufferLength; i++) { if (dataArray[i] > 0) { nz++; break; } }
+                if (nz === 0) {
+                  const streak = (window.__riffVisSilenceStreak || 0) + 1;
+                  window.__riffVisSilenceStreak = streak;
+                  if (streak <= 2) {
+                    try { window.__riffSource.disconnect(); } catch (_) {}
+                    try { analyser.disconnect(); } catch (_) {}
+                    let prev = window.__riffSource;
+                    const eqf = window.__riffEQFilters || [];
+                    for (const fb of eqf) { prev.connect(fb); prev = fb; }
+                    prev.connect(analyser);
+                    try { analyser.connect(actx.destination); } catch (_) {}
+                    if (actx.state !== 'running') { try { actx.resume(); } catch (_) {} }
+                    console.warn('[Riff Visualizer] auto-heal L1 re-cable (silent streak ' + streak + ')');
+                  } else if (streak >= 4) {
+                    // NUKE: render de webaudio irrecuperable — bandera
+                    // __riffNukeRequest; el MAIN la lee (ciclo 2s) y
+                    // hace loadURL completo del webview (sin beforeunload
+                    // dialogs: tenemos el handler will-prevent-unload).
+                    console.warn('[Riff Visualizer] auto-heal L3 NUKE: solicitando reload via main');
+                    window.__riffNukeRequest = Date.now();
+                    window.__riffVisSilenceStreak = 0;
+                    window.__riffVisLastCheck = nowMs + 30000; // cooldown 30s
+                  }
+                } else if (window.__riffVisSilenceStreak) {
                   window.__riffVisSilenceStreak = 0;
-                  try { location.reload(); } catch (_) {}
                 }
-              } else if (window.__riffVisSilenceStreak) {
-                window.__riffVisSilenceStreak = 0;
               }
             }
-            window.__riffVisLastT = nowT;
           }
         } catch (_) {}
 
