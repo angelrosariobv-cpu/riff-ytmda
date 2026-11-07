@@ -58,6 +58,7 @@ export default class CustomJS extends Integration {
      ------------------------------------------------------------ */
   private accentTimer: NodeJS.Timeout | null = null;
   private lastAccentUrl = "";
+  private lastNukeTs = 0;
   private titlebarReconciler: NodeJS.Timeout | null = null;
 
   private startAccentSync() {
@@ -97,8 +98,25 @@ export default class CustomJS extends Integration {
           "getComputedStyle(document.documentElement).getPropertyValue('--riff-accent').trim() || ''",
           true,
         );
-        if (pageAccent !== tbAccent) {
-          await mainWin.webContents.executeJavaScript(
+        // NUKE FLAG (2026-11-07): cuando el auto-heal L3 del visualizer
+        // decide que el pipeline de webaudio esta irrecuperable, deja
+        // __riffNukeRequest (Date.now) y el main fuerza el crash del
+        // renderer — YTMDA auto-recrea la vista SIN beforeunload (no
+        // aparece el dialog "Leave site?").
+        try {
+          const nuke: number = await view.webContents.executeJavaScript(
+            "window.__riffNukeRequest || 0", true,
+          );
+          if (nuke && nuke > (this.lastNukeTs || 0)) {
+            this.lastNukeTs = nuke;
+            console.log("[CustomJS] NUKE request visualizada:", new Date(nuke).toISOString(), "- forzando crash-reset del renderer");
+            view.webContents.forcefullyCrashRenderer();
+            return;
+          }
+        } catch (nErr: any) {
+          console.error("[CustomJS] nuke flag check failed:", nErr?.message || nErr);
+        }
+        if (pageAccent !== tbAccent) {          await mainWin.webContents.executeJavaScript(
             `document.documentElement.style.setProperty('--riff-accent', ${JSON.stringify(pageAccent)});`,
             true,
           );
@@ -256,9 +274,20 @@ export default class CustomJS extends Integration {
       }, 1500);
       this.injectNow(wc);
     };
-    wc.on("dom-ready", onDomReady);
-    // The view might already be past dom-ready; inject once now too.
-    onDomReady();
+      wc.on("dom-ready", onDomReady);
+      // The view might already be past dom-ready; inject once now too.
+      onDomReady();
+
+    // SUPRIMIR EL "LEAVE SITE?" (2026-11-07): el auto-heal L3 del
+    // visualizador hace reload() del webview cuando el pipeline de
+    // audio muere — el beforeunload de YTM pinta el dialog "Leave
+    // site?" y TAMBIEN bloqueaba cambios de cancion (el beforeunload
+    // de YT dispara para CUALQUIER navegacion interna aprobada por
+    // el usuario). preventDefault aqui = navegar sin preguntar.
+    wc.on("will-prevent-unload", (event: any) => {
+      event.preventDefault();
+      console.log("[CustomJS] will-prevent-unload suppressed (riff auto-heal navigation)");
+    });
 
     // CONSOLE DEL VIEW YTM -> main log (los errores de la app de YT
     // en runtime antes eran invisibles: el vite-relay solo reenvia
@@ -694,6 +723,41 @@ export default class CustomJS extends Integration {
         .then((r) => console.log("[CustomJS] shelfProbe:", r))
         .catch((e) => console.error("[CustomJS] shelfProbe failed:", e));
     }, 12000);
+
+    // ---- VIS PROBE (debug visualizador-muerto): estado de la cadena
+    // audio + silencio o no del analyser. Cada 15s x6.
+    let visRun = 0;
+    const visTimer = setInterval(() => {
+      visRun++;
+      if (visRun > 6 || wc.isDestroyed()) { clearInterval(visTimer); return; }
+      const visDump = `(() => {
+        const out = { run: ${visRun} };
+        const s = window.__riffAnalyser;
+        out.epoch = window.__riffVisEpoch;
+        out.booted = window.__riffVisEpochBooted;
+        out.eqWired = !!window.__riffEQWired;
+        if (!s) { out.analyser = null; return JSON.stringify(out); }
+        try {
+          const a = new Uint8Array(s.frequencyBinCount);
+          s.getByteFrequencyData(a);
+          let sum = 0, nz = 0;
+          for (const v of a) { sum += v; if (v > 0) nz++; }
+          out.avg = (sum / a.length).toFixed(1);
+          out.nonzero = nz;
+        } catch (e) { out.avgErr = String(e && e.message || e); }
+        out.ctxState = (window.__riffAudioCtx && window.__riffAudioCtx.state) || 'no-ctx';
+        out.src = !!window.__riffSource;
+        const domVid = document.querySelector('video');
+        out.srcMatchesDom = !!(window.__riffVisSrcEl && domVid && window.__riffVisSrcEl === domVid);
+        const cv = document.getElementById('riff-audio-visualizer');
+        out.canvas = !!cv;
+        out.canvasInBar = !!(cv && cv.parentElement && cv.parentElement.matches('ytmusic-player-bar'));
+        return JSON.stringify(out);
+      })()`;
+      wc.executeJavaScript(visDump, true)
+        .then((r) => console.log("[CustomJS] visProbe:", r))
+        .catch((e) => console.error("[CustomJS] visProbe failed:", e));
+    }, 15000);
 
     // ---- THUMB DUMP: todas las img con src REAL en la pagina de
     // video — para wirear el fallback de cover-en-video ----
