@@ -120,15 +120,17 @@
         } catch (_) {}
       } else {
         // Sin bucket saturado => cover blanco/gris (el placeholder
-        // morado Riff saltaba). Frédérico pedido 2026-11-07: gris
-        // claro #c7c8ca en vez de morado.
+        // morado Riff saltaba). Pedido 2026-11-07: gris claro #c7c8ca.
+        // OJO: NO tocar __riffGlowCssKey aqui — el draw-loop debe
+        // detectar el key nuevo y reconstruir el ambiente con el gris
+        // (puse la key a mano y el fondo se quedaba con el gradiente
+        // de la cancion anterior).
         const R = 199, G = 200, B = 202;
         window.__riffAccent = { r: R, g: G, b: B };
         try {
           document.documentElement.style.setProperty('--riff-accent', 'rgb(' + R + ',' + G + ',' + B + ')');
           document.documentElement.style.setProperty('--riff-accent-glow', 'rgba(' + Math.round(R + (255 - R) * 0.45) + ',' + Math.round(G + (255 - G) * 0.45) + ',' + Math.round(B + (255 - B) * 0.45) + ',0.6)');
           applyPrimaryColorToBar('rgb(' + R + ',' + G + ',' + B + ')');
-          window.__riffGlowCssKey = R + '_' + G + '_' + B;
           window.__riffAccentLog = 'rgb(' + R + ',' + G + ',' + B + ')';
         } catch (_) {}
       }
@@ -188,15 +190,19 @@
   /* FALLBACK ASTRO PARA MUSICA-VIDEO: los videoclips no traen
      album-art (#song-image queda con el gif 1x1) — el sistema
      dejaba el color por defecto (morado Riff) secuestrando la
-     titlebar. La miniatura del video vive en el item seleccionado
-     de la cola (ytmusic-player-queue-item) y en el player-page. */
+     titlebar. Miniatura del video: item seleccionado de la cola y
+     —ultimo recurso— CUALQUIER img >= 48x48 visible dentro del
+     player-page con src real (el DOM de YT cambia con frecuencia;
+     el fallback generico no se rompe). */
   function findVideoThumb() {
     const sels = [
       'ytmusic-player-queue-item[aria-selected="true"] img',
       'ytmusic-player-queue-item[aria-selected] img',
       'ytmusic-player-queue .ytmusic-player-queue-item[selected] img',
       'ytmusic-player-queue ytmusic-player-queue-item img',
-      'ytmusic-player .ytmusic-player-queue img'
+      'ytmusic-player .ytmusic-player-queue img',
+      '#player-page ytmusic-responsive-list-item-renderer[aria-selected] img',
+      '#player-page ytmusic-responsive-list-item-renderer img'
     ];
     for (const s of sels) {
       const el = document.querySelector(s);
@@ -205,6 +211,16 @@
         if (isUsableArt(u)) return u;
       }
     }
+    try {
+      const page = document.querySelector('ytmusic-player-page') || document;
+      const imgs = page.querySelectorAll('img');
+      for (const el of imgs) {
+        const u = el.currentSrc || el.src || '';
+        if (!isUsableArt(u)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width >= 48 && r.height >= 48) return u;
+      }
+    } catch (_) {}
     return '';
   }
 
