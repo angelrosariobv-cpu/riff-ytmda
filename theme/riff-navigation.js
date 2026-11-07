@@ -523,6 +523,38 @@
         analyser.getByteFrequencyData(dataArray);
         const accent = window.__riffAccent;
 
+        // --- AUTO-HEAL (fix visualizador-muerto 2): si el audio está
+        // avanzando pero el analyser reporta silencio total, el
+        // pipeline quedó "colgado" (Chromium pierde la conexión del
+        // MediaElementSource a mitad de sesión). Re-cablea la cadena
+        // completa (source -> EQ -> analyser -> destination). El
+        // refresco es id: solo si avg==0 Y video no pausado Y
+        // currentTime avanza.
+        try {
+          const vEl = window.__riffVisSrcEl || document.querySelector('video');
+          if (vEl && !vEl.paused) {
+            const nowT = vEl.currentTime;
+            if (window.__riffVisLastT !== undefined && nowT > window.__riffVisLastT) {
+              let nz = 0;
+              for (let i = 0; i < bufferLength; i++) { if (dataArray[i] > 0) { nz++; break; } }
+              if (nz === 0 && window.__riffVisHealT === undefined) {
+                window.__riffVisHealT = nowT;
+                try { window.__riffSource.disconnect(); } catch (_) {}
+                try { analyser.disconnect(); } catch (_) {}
+                let prev = window.__riffSource;
+                const eqf = window.__riffEQFilters || [];
+                for (const fb of eqf) { prev.connect(fb); prev = fb; }
+                prev.connect(analyser);
+                try { analyser.connect(actx.destination); } catch (_) {}
+                if (actx.state !== 'running') { try { actx.resume(); } catch (_) {} }
+                console.warn('[Riff Visualizer] auto-heal: cadena re-cableada (analyser en silencio con audio activo)');
+              }
+            }
+            window.__riffVisLastT = nowT;
+          }
+        } catch (_) {}
+
+
         // --- WAVE FLOW: la onda nadа (gif), mask-position por rAF ---
         try {
           const pbar2 = playerBar.querySelector('#progress-bar #sliderBar');
