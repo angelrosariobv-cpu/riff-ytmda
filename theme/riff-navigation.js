@@ -475,6 +475,7 @@
           return;
         }
       }
+      window.__riffVisSrcEl = window.__riffVisSrcEl || document.querySelector('video');
 
       const analyser = window.__riffAnalyser;
       const actx = window.__riffAudioCtx;
@@ -485,6 +486,32 @@
         if (epoch !== window.__riffVisEpoch) return; // epoch nuevo: muere
         requestAnimationFrame(draw);
         if (!canvas.isConnected) return;
+
+        // RE-BIND del video (fix visualizador-muerto): cuando YT cambia
+        // de track (video -> audio y viceversa) reemplaza el nodo
+        // <video> — el MediaElementSource quedaba conectado al nodo
+        // VIEJO (desconectado): barras muertas + audio en silencio para
+        // la cadena EQ. Si el nodo cambio, se reconecta la cadena
+        // completa (source -> EQ filters -> analyser -> destination).
+        try {
+          const curVid = document.querySelector('video');
+          if (curVid && curVid !== window.__riffVisSrcEl) {
+            const actxL = window.__riffAudioCtx;
+            if (actxL) {
+              if (window.__riffSource) { try { window.__riffSource.disconnect(); } catch (_) {} }
+              const src2 = actxL.createMediaElementSource(curVid);
+              window.__riffSource = src2;
+              window.__riffVisSrcEl = curVid;
+              let prev = src2;
+              const eqf = window.__riffEQFilters || [];
+              for (const fb of eqf) { prev.connect(fb); prev = fb; }
+              prev.connect(window.__riffAnalyser);
+              window.__riffEQWired = true;
+              if (actxL.state === 'suspended') { try { actxL.resume(); } catch (_) {} }
+            }
+          }
+        } catch (_) {}
+
         if (canvas.width !== playerBar.clientWidth) canvas.width = playerBar.clientWidth;
         if (canvas.height !== playerBar.clientHeight) canvas.height = playerBar.clientHeight;
 
