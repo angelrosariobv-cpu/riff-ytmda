@@ -523,13 +523,16 @@
         analyser.getByteFrequencyData(dataArray);
         const accent = window.__riffAccent;
 
-        // --- AUTO-HEAL (fix visualizador-muerto 2): si el audio está
-        // avanzando pero el analyser reporta silencio total, el
-        // pipeline quedó "colgado" (Chromium pierde la conexión del
-        // MediaElementSource a mitad de sesión). Re-cablea la cadena
-        // completa (source -> EQ -> analyser -> destination). El
-        // refresco es id: solo si avg==0 Y video no pausado Y
-        // currentTime avanza.
+        // --- AUTO-HEAL (fix visualizador-muerto 2) — ESCALADO:
+        // L1 re-cablea la cadena (source -> EQ -> analyser -> dest).
+        // L2 si el silencio persiste 3 rondas seguidas (los errores
+        // "AudioContext encountered an error from the audio device" +
+        // carreras de "Network service crashed" dejan el render dead
+        // sin remedio de cableado): NUCLEAR —— reload() del webview.
+        // El playback se re-arranca desde 0 (la AppWindow recupera el
+        // track y la posición via PlayerState de YTMDA), y el pipeline
+        // de audio renace limpio. Solo si el audio está avanzando y
+        // currentTime progresa.
         try {
           const vEl = window.__riffVisSrcEl || document.querySelector('video');
           if (vEl && !vEl.paused) {
@@ -537,17 +540,29 @@
             if (window.__riffVisLastT !== undefined && nowT > window.__riffVisLastT) {
               let nz = 0;
               for (let i = 0; i < bufferLength; i++) { if (dataArray[i] > 0) { nz++; break; } }
-              if (nz === 0 && window.__riffVisHealT === undefined) {
+              if (nz === 0) {
+                const streak = (window.__riffVisSilenceStreak || 0) + 1;
+                window.__riffVisSilenceStreak = streak;
                 window.__riffVisHealT = nowT;
-                try { window.__riffSource.disconnect(); } catch (_) {}
-                try { analyser.disconnect(); } catch (_) {}
-                let prev = window.__riffSource;
-                const eqf = window.__riffEQFilters || [];
-                for (const fb of eqf) { prev.connect(fb); prev = fb; }
-                prev.connect(analyser);
-                try { analyser.connect(actx.destination); } catch (_) {}
-                if (actx.state !== 'running') { try { actx.resume(); } catch (_) {} }
-                console.warn('[Riff Visualizer] auto-heal: cadena re-cableada (analyser en silencio con audio activo)');
+                if (streak <= 2) {
+                  try { window.__riffSource.disconnect(); } catch (_) {}
+                  try { analyser.disconnect(); } catch (_) {}
+                  let prev = window.__riffSource;
+                  const eqf = window.__riffEQFilters || [];
+                  for (const fb of eqf) { prev.connect(fb); prev = fb; }
+                  prev.connect(analyser);
+                  try { analyser.connect(actx.destination); } catch (_) {}
+                  if (actx.state !== 'running') { try { actx.resume(); } catch (_) {} }
+                  console.warn('[Riff Visualizer] auto-heal L1: cadena re-cableada (silent streak ' + streak + ')');
+                } else if (streak === 3) {
+                  // NUKE: el render de webaudio está muerto por dentro —
+                  // reload del webview reinicializa el pipeline limpio.
+                  console.warn('[Riff Visualizer] auto-heal L3: pipeline irrecuperable — reload() del webview');
+                  window.__riffVisSilenceStreak = 0;
+                  try { location.reload(); } catch (_) {}
+                }
+              } else if (window.__riffVisSilenceStreak) {
+                window.__riffVisSilenceStreak = 0;
               }
             }
             window.__riffVisLastT = nowT;
