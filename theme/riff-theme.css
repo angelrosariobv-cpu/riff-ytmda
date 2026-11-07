@@ -1,0 +1,962 @@
+/* MULTI-CHUNK: 18-160 + 202-250 + 251-653 + 665-796 + 797-935 */
+
+/* --- chunk 18-160 --- */
+ytmusic-app {
+  /* Surfaces (Riff dark palette) */
+  --riff-surface: #121214;
+  --riff-surface-container-lowest: #0D0E0F;
+  --riff-surface-container-low: #1A1B1E;
+  --riff-surface-container: #1E1F22;
+  --riff-surface-container-high: #28292C;
+  --riff-surface-container-highest: #333438;
+
+  /* Action colors */
+  --riff-primary: #5247d1;
+  --riff-on-primary: #ffffff;
+  --riff-primary-container: #282366;
+  --riff-on-primary-container: #e0dfff;
+  --riff-error: #F2B8B5;
+
+  /* Text + lines */
+  --riff-on-surface: #E6E6E8;
+  --riff-on-surface-variant: #CAC4D0;
+  --riff-outline: #938F99;
+  --riff-outline-variant: #49454F;
+
+  /* Shape */
+  --riff-radius-s: 8px;
+  --riff-radius-m: 12px;
+  --riff-radius-l: 16px;
+  --riff-radius-xl: 28px;
+  --riff-radius-full: 9999px;
+
+  /* Motion (exact cubic-beziers from Riff) */
+  --riff-ease-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
+  --riff-ease-normal: 200ms cubic-bezier(0.2, 0, 0, 1);
+  --riff-ease-m3: 350ms cubic-bezier(0.2, 0, 0, 1);
+  --riff-ease-emphasized: 400ms cubic-bezier(0.2, 0, 0, 1);
+  --riff-ease-jelly: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --riff-ease-hover: 70ms cubic-bezier(0.1, 0.9, 0.2, 1);
+  --riff-ease-hover-out: 100ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Album art for the blurred ambient layer.
+     Set at runtime by riff-navigation.js on <html>; NO default here:
+     declaring it directly on ytmusic-app would block inheritance
+     of the inline value set on document.documentElement. */
+}
+
+/* Map riff tokens onto YT Music's own spec variables */
+ytmusic-app {
+  --yt-spec-general-background-a: var(--riff-surface) !important;
+  --yt-spec-general-background-b: var(--riff-surface-container-low) !important;
+  --yt-spec-general-background-c: var(--riff-surface-container) !important;
+  --yt-spec-brand-background-solid: var(--riff-surface) !important;
+  --yt-spec-menu-background: var(--riff-surface-container) !important;
+  --yt-spec-text-primary: var(--riff-on-surface) !important;
+  --yt-spec-text-secondary: var(--riff-on-surface-variant) !important;
+  --yt-spec-outline: var(--riff-outline) !important;
+  --yt-spec-general-primary-color: var(--riff-primary) !important;
+  --yt-spec-static-brand-color: var(--riff-primary) !important;
+}
+
+/* ------------------------------------------------------------
+   2. TYPOGRAPHY — Google Sans everywhere (Riff's font)
+   ------------------------------------------------------------ */
+ytmusic-app,
+ytmusic-app *:not(iron-icon):not(svg):not(path) {
+  font-family: 'Google Sans', 'Google Sans Text', system-ui, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Icon ligature restore — the global font above turns Material Symbols
+   ligature text ("west"/"east" arrows, etc.) into visible words. Put the
+   icon font back on the ligature carriers. */
+ytmusic-app span.material-symbols-outlined,
+ytmusic-app span.material-icons,
+ytmusic-app .yt-spec-icon-shape,
+ytmusic-app yt-icon,
+ytmusic-app yt-icon span,
+ytmusic-app ytd-button-renderer yt-icon-button,
+ytmusic-app yt-icon-button[aria-label] span,
+ytmusic-app ytmusic-nav-bar #left-content yt-icon-button span,
+ytmusic-app ytmusic-nav-bar #top-buttons yt-icon-button span {
+  font-family: 'Material Symbols Outlined', 'Material Icons', sans-serif !important;
+}
+
+/* ------------------------------------------------------------
+   3. AMBIENT ALBUM-ART BLUR (Riff's signature backdrop)
+      Layer fed by --riff-album-art from riff-navigation.js.
+      var(--riff-album-art) is 'none' until the script runs.
+   ------------------------------------------------------------ */
+ytmusic-app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  /* AMBIENTE SOLID: un solo gradiente construido en JS con el color
+     dominante del cover (publicado en --riff-ambient-solid cada
+     canción). Los gradientes CSS no pueden partir el arte en mitades:
+     sin costuras, sin la "canción atrasada", sin dependencia del
+     render del cover. Fallback = tonos Riff estáticos si aún no hay
+     accent (arranque). */
+  background-image: var(--riff-ambient-solid, linear-gradient(160deg, rgba(82,71,209,0.75), rgba(8,8,10,0.92) 82%));
+  background-size: 100% 100%;
+  background-position: center;
+  filter: blur(24px) saturate(1.25) brightness(0.78);
+  opacity: 0.95;
+  pointer-events: none;
+  transition: background-image var(--riff-ease-m3), opacity var(--riff-ease-m3);
+}
+
+/* El ambient nativo de YTM por-ESTAMPA vive en PSEUDO-ELEMENTOS de los
+   shelves (los probes de elementsFromPoint no los ven): cada shelf pinta
+   su propio degradado con los covers que contiene — la fuente de las
+   "roturas" entre secciones. Todos fuera: un solo ambient (el nuestro).
+   [BISECT 2026-11-06: bloque COMENTADO — sospechoso del colapso h:0 en browse]
+ytmusic-shelf::before,
+ytmusic-shelf::after,
+ytmusic-carousel-shelf-renderer::before,
+ytmusic-carousel-shelf-renderer::after,
+ytmusic-carousel::before,
+ytmusic-carousel::after,
+ytmusic-section-list-renderer::before,
+ytmusic-section-list-renderer::after,
+ytmusic-browse-response::before,
+ytmusic-browse-response::after,
+ytmusic-guide-section-renderer::before,
+ytmusic-guide-section-renderer::after {
+  display: none !important;
+}
+
+[BISECT] El ambient nativo de YTM sobre el home (la caja del cover atrasado
+que convivió con el nuestro): muerto — el ambient único es el nuestro.
+ytmusic-background-overlay-renderer,
+ytmusic-item-thumbnail-overlay-renderer #background {
+  display: none !important;
+}
+
+[BISECT] Dejamos pasar el ambiente por los fondos opacos de YT arriba:
+ytmusic-app #nav-bar-background,
+ytmusic-app #mini-guide-background,
+ytmusic-browse-response .background-gradient,
+ytmusic-search-page .background-gradient {
+  background: none !important;
+  background-image: none !important;
+}
+FIN BISECT */
+
+/* --- chunk 202-250 --- */
+ytmusic-nav-bar::before,
+ytmusic-nav-bar::after,
+ytmusic-app::after,
+ytmusic-player-page::before,
+ytmusic-player-page::after,
+ytmusic-player-bar::before,
+ytmusic-player-bar::after,
+#layout::before,
+#layout::after,
+#content-wrapper::before,
+#content-wrapper::after,
+ytmusic-guide-renderer::before,
+ytmusic-guide-renderer::after,
+ytmusic-browse-response::before,
+ytmusic-browse-response::after {
+  background: transparent !important;
+  background-image: none !important;
+  content: none !important;
+}
+FIN BISECT pseudos */
+
+/* Asegurar la capa de ambiente en TODO el viewport (shorthand
+   background para que el var aplique completo, no solo image) */
+ytmusic-app::before {
+  background: var(--riff-ambient-solid, var(--riff-primary-color, #0d0f1d)) !important;
+}
+
+/* Scrim de arriba MUY tenue: que el color del cover llegue limpio
+   (antes el 38%+30% apilado daba la mezcla vino/morada sobre el rojo) */
+ytmusic-app-layout {
+  background: color-mix(in srgb, var(--riff-surface) 22%, transparent) !important;
+}
+
+/* Content lives above the ambient layer */
+ytmusic-app > * {
+  z-index: 1;
+}
+
+/* Expanded/fullscreen player: el player-page (overlay del modo video)
+   se maneja por reglas propias de YT — el app-layout YA tiene su scrim
+   tenue en la regla de arriba (unicamente, sin duplicados que lo pisen). */
+ytmusic-player-page,
+ytmusic-player-page #player-page,
+ytmusic-app-layout.player-page-background,
+ytmusic-app-layout[player-page-background] {
+  background: color-mix(in srgb, var(--riff-surface) 55%, transparent) !important;
+}
+
+/* ------------------------------------------------------------
+
+/* --- chunk 251-653 --- */
+   4. PLAYER BAR (bottom) — Riff's blurred solid-panel style
+   ------------------------------------------------------------ */
+ytmusic-player-bar {
+  background: color-mix(in srgb, var(--riff-surface-container) 76%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(140%) !important;
+  backdrop-filter: blur(24px) saturate(140%) !important;
+  border-top: 1px solid var(--riff-outline-variant);
+}
+
+ytmusic-player-bar img.image {
+  border-radius: var(--riff-radius-m) !important;
+}
+
+ytmusic-player-bar tp-yt-paper-icon-button {
+  border-radius: var(--riff-radius-full) !important;
+}
+
+/* ============================================================
+   15. SIDEBAR GUIDE — entrada escalonada + pill Active
+   ============================================================ */
+@keyframes riffGuideEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.88);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+ytmusic-guide-renderer ytmusic-guide-entry-renderer {
+  animation: riffGuideEnter 0.55s cubic-bezier(0.2, 0, 0, 1) both;
+}
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(1) { animation-delay: 40ms; }
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(2) { animation-delay: 140ms; }
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(3) { animation-delay: 240ms; }
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(4) { animation-delay: 340ms; }
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(5) { animation-delay: 440ms; }
+ytmusic-guide-renderer ytmusic-guide-entry-renderer:nth-child(n+6) { animation-delay: 520ms; }
+
+/* Pill activa REAL (via guideDump): el marcador es el tp-yt-paper-item
+   interno con aria-current="true" — COLOR DINAMICO del cover actual
+   (var(--riff-accent), publicado por el visualizer); glow suave del
+   mismo tono; icono/label al blanco para contraste */
+ytmusic-guide-renderer ytmusic-guide-entry-renderer tp-yt-paper-item[aria-current="true"] {
+  background: color-mix(in srgb, var(--riff-accent, #5247d1) 52%, transparent) !important;
+  border-radius: var(--riff-radius-full) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--riff-accent, #5247d1) 30%, transparent) !important;
+  color: #ffffff !important;
+}
+
+/* Hover + fluidez de los items internos */
+ytmusic-guide-renderer ytmusic-guide-entry-renderer tp-yt-paper-item {
+  border-radius: var(--riff-radius-full) !important;
+  background: transparent !important;
+  transition: background var(--riff-ease-fast);
+}
+
+ytmusic-guide-renderer ytmusic-guide-entry-renderer tp-yt-paper-item[aria-current="false"]:hover,
+ytmusic-guide-renderer ytd-compact-link-renderer:hover {
+  background: color-mix(in srgb, var(--riff-outline-variant) 45%, transparent) !important;
+}
+
+/* Re-animacion del stagger al navegar (riff-guide-restart via JS) —
+   ahora con riffGuideEnter mas notorio */
+ytmusic-guide-renderer.riff-guide-restart ytmusic-guide-entry-renderer {
+  animation: riffGuideEnter 0.55s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+ytmusic-guide-renderer ytd-compact-link-renderer:hover,
+ytmusic-guide-renderer yt-compact-link-renderer:hover {
+  background: color-mix(in srgb, var(--riff-outline-variant) 45%, transparent) !important;
+}
+
+/* Active item = Riff's selected look */
+ytmusic-guide-renderer ytd-compact-link-renderer[selected],
+ytmusic-guide-renderer yt-compact-link-renderer[selected] {
+  background: var(--riff-primary-container) !important;
+}
+
+/* ------------------------------------------------------------
+   6. HOME / LIBRARY CONTENT — cards, shelves, lists
+   ------------------------------------------------------------ */
+ytmusic-two-row-item-renderer {
+  border-radius: var(--riff-radius-l) !important;
+  overflow: hidden !important;
+  transition: transform var(--riff-ease-normal);
+}
+
+ytmusic-two-row-item-renderer:hover {
+  transform: translateY(-2px);
+}
+
+/* List rows (library / playlists) */
+ytmusic-responsive-list-item-renderer,
+ytmusic-shelf-renderer ytmusic-item-renderer {
+  border-radius: var(--riff-radius-m) !important;
+  transition: background var(--riff-ease-fast);
+}
+
+/* Player page side panels (queue, related) with the Riff blur */
+ytmusic-player-queue,
+ytmusic-player-page #panel {
+  background: color-mix(in srgb, var(--riff-surface-container-low) 82%, transparent) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  border-radius: var(--riff-radius-xl);
+}
+
+/* ------------------------------------------------------------
+   7. MOTION — Riff's exact @keyframes for entrances
+   ------------------------------------------------------------ */
+@keyframes riffFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes riffContainerOpen {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes riffContainerClose {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+/* Page entrance — re-triggered by riff-navigation.js on each
+   navigation event (adds/removes .riff-page-enter) */
+ytmusic-section-list-renderer.riff-page-enter {
+  animation: riffContainerOpen var(--riff-ease-emphasized) both;
+}
+
+/* ------------------------------------------------------------
+   8. CONTROLS & MENUS
+   ------------------------------------------------------------ */
+/* Sliders in Riff's primary */
+tp-yt-paper-slider.yt-spec-slider-shape-stylized,
+ytmusic-player-bar ytmusic-slider,
+ytmusic-slider {
+  --yt-spec-static-brand-color: var(--riff-primary) !important;
+  --yt-spec-wordmark-text: var(--riff-on-surface) !important;
+}
+
+/* Dropdown menus: Riff's container-high look */
+ytd-popup-container ytmusic-dropdown-renderer,
+ytmusic-dropdown-renderer {
+  background: var(--riff-surface-container-high) !important;
+  border-radius: var(--riff-radius-l) !important;
+}
+
+/* Chips / buttons */
+yt-chip-cloud-renderer yt-chip-cloud-chip-renderer {
+  background: var(--riff-surface-container) !important;
+  border-radius: var(--riff-radius-full) !important;
+  transition: background var(--riff-ease-fast);
+}
+
+yt-chip-cloud-renderer yt-chip-cloud-chip-renderer[iron-selected],
+yt-chip-cloud-renderer yt-chip-cloud-chip-renderer.active {
+  background: var(--riff-primary) !important;
+  color: var(--riff-on-primary) !important;
+}
+
+/* Fullscreen / expanded player page: let the Riff ambient layer
+   (blurred album art) show through instead of the flat black bg */
+ytmusic-player-page,
+ytmusic-player-page #player-page,
+ytmusic-player-page ytmusic-background-overlay-renderer {
+  background: transparent !important;
+}
+
+ytmusic-player-page #player-page ytmusic-background-overlay-renderer img {
+  filter: blur(48px) saturate(1.35) brightness(0.35);
+  opacity: 0.55;
+  transform: scale(1.1);
+}
+
+/* Keep controls readable over the ambient: soft scrims */
+ytmusic-player-page #header,
+ytmusic-player-page #tabs,
+ytmusic-player-page .time-info {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------
+   9. SCROLLBARS
+   ------------------------------------------------------------ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--riff-surface-container-highest);
+  border-radius: var(--riff-radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--riff-outline);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================================
+   10. PREMIUM POLISH — aditivo puro, no toca las secciones 1-9:
+       si un selector no matchea con el DOM actual, no pinta (no rompe)
+   ============================================================ */
+
+/* Nav bar glass — translucido sobre el ambient */
+ytmusic-nav-bar {
+  background: color-mix(in srgb, var(--riff-surface) 55%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
+  backdrop-filter: blur(20px) saturate(120%) !important;
+}
+
+/* Pildora activa del sidebar — variantes de atributo hasta cazar la real.
+   Todas apuntan al compact-link del guide; la que matchea gana. */
+ytmusic-guide-renderer ytd-compact-link-renderer[aria-selected="true"],
+ytmusic-guide-renderer ytd-compact-link-renderer.iron-selected,
+ytmusic-guide-renderer ytd-compact-link-renderer[tabsent-selected],
+ytmusic-guide-renderer yt-compact-link-renderer[aria-selected="true"],
+ytmusic-guide-renderer yt-compact-link-renderer.iron-selected {
+  background: var(--riff-primary-container) !important;
+  border-radius: var(--riff-radius-full) !important;
+}
+
+ytmusic-guide-renderer ytd-compact-link-renderer[aria-selected="true"] .label,
+ytmusic-guide-renderer yt-compact-link-renderer[aria-selected="true"] .label {
+  color: var(--riff-on-primary-container) !important;
+  font-weight: 600;
+}
+
+/* Hover de tarjetas: elevacion + sombra suave premium */
+ytmusic-two-row-item-renderer:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform var(--riff-ease-m3), box-shadow var(--riff-ease-m3);
+}
+
+/* Bloques de contenido: entrada escalonada mas suave */
+ytmusic-shelf-renderer {
+  animation: riffFadeUp var(--riff-ease-m3) both;
+}
+
+/* Botones yt-spec: forma pildora y hover ghost */
+ytmusic-app .yt-spec-button-shape-next {
+  border-radius: var(--riff-radius-full) !important;
+  transition: background var(--riff-ease-fast), opacity var(--riff-ease-hover), var(--riff-ease-hover-out);
+}
+
+/* Barra de busqueda: pildora + anillo de foco suave solo en focus.
+   El modo expandido (focus) debe morph suavemente, sin salto brusco.
+   El contenedor externo va TRANSPARENTE para que no quede el rectangulo
+   negro de YTM solapando la pildora. */
+ytmusic-app #masthead-search,
+ytmusic-app ytmusic-search-box,
+ytmusic-app ytmusic-search-box > * {
+  background: transparent !important;
+  outline: none !important;
+  border-radius: var(--riff-radius-full) !important;
+  transition: border-radius var(--riff-ease-normal), box-shadow var(--riff-ease-normal),
+    background var(--riff-ease-normal);
+  box-shadow: none;
+}
+
+/* Restos del contenedor viejo: masthead wrapper y fondos del search box */
+ytmusic-app #masthead,
+ytmusic-app #masthead-container,
+ytmusic-app ytmusic-nav-bar #masthead-container,
+ytmusic-app ytmusic-search-box #background {
+  background: transparent !important;
+}
+
+/* Fondos en pseudo-elementos del search box (el rectangulo negro bajo la pildora) */
+ytmusic-app ytmusic-search-box::before,
+ytmusic-app ytmusic-search-box::after,
+ytmusic-app #masthead-search::before,
+ytmusic-app #masthead-search::after,
+ytmusic-app ytmusic-search-box>*::before,
+ytmusic-app ytmusic-search-box>*::after {
+  display: none !important;
+}
+
+ytmusic-app ytmusic-search-box #search,
+ytmusic-app ytmusic-search-box input {
+  background: var(--riff-surface-container) !important;
+  border-radius: var(--riff-radius-full) !important;
+}
+
+ytmusic-app #masthead-search:focus-within,
+ytmusic-app ytmusic-search-box:focus-within,
+ytmusic-app ytmusic-search-box:focus,
+ytmusic-app #masthead-search *:focus,
+ytmusic-app ytmusic-search-box *:focus,
+ytmusic-app #masthead-search:focus {
+  border-radius: var(--riff-radius-full) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--riff-primary) 55%, transparent);
+}
+
+/* El panel de sugerencias: id via searchDump (#suggestion-list).
+   Angel lo quiere solido, como la app regular de YT Music: sin blur,
+   sin translucidez, un tono oscuro coherente con nuestras superficies. */
+ytmusic-app ytmusic-search-box #suggestion-list {
+  border-radius: var(--riff-radius-l) !important;
+  background: var(--riff-surface-container-lowest) !important;
+  border: none !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Filas del panel: pillerias con hover */
+ytmusic-app ytmusic-search-box #suggestion-list [role="option"],
+ytmusic-app ytmusic-search-box #suggestion-list ytmusic-suggestion-renderer,
+ytmusic-app ytmusic-search-box #suggestion-list ytmusic-search-suggestion-renderer {
+  border-radius: var(--riff-radius-m) !important;
+  transition: background var(--riff-ease-fast);
+}
+
+ytmusic-app ytmusic-search-box #suggestion-list [role="option"]:hover,
+ytmusic-app ytmusic-search-box #suggestion-list ytmusic-suggestion-renderer:hover,
+ytmusic-app ytmusic-search-box #suggestion-list ytmusic-search-suggestion-renderer:hover {
+  background: color-mix(in srgb, var(--riff-surface-container-high) 80%, transparent) !important;
+}
+
+/* Player bar: hairline superior con luz primaria tenue */
+ytmusic-player-bar {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent),
+    0 -12px 32px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Titulos de seccion: peso premium */
+ytmusic-app yt-formatted-string[role='heading'],
+ytmusic-app h2 {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Filas de lista/cola: hover con relieve leve */
+ytmusic-player-queue ytmusic-player-queue-item {
+  border-radius: var(--riff-radius-m) !important;
+}
+
+ytmusic-player-queue ytmusic-player-queue-item:hover {
+  background: color-mix(in srgb, var(--riff-surface-container-high) 75%, transparent) !important;
+}
+
+/* Chips de arriba (Energia, Relax...): pildoras con hover */
+yt-chip-cloud-renderer yt-chip-cloud-chip-renderer:hover {
+  background: var(--riff-surface-container-high) !important;
+}
+
+/* Slider de volumen/progress: knob mas notorio al hover */
+ytmusic-app ytmusic-slider:hover #knob,
+ytmusic-app ytmusic-slider:hover .slider-knob {
+  opacity: 1;
+}
+
+/* Toggles (yt-spec toggle) cuando activos */
+yt-spec-toggle-button,
+.yt-spec-badge-chip {
+  border-radius: var(--riff-radius-full) !important;
+}
+
+/* ============================================================
+   METRIC & LYRICS EXTENSION — anexado según instrucciones de
+   Gemini. Cero cambios a secciones 1-10 (sidebar/search/player/
+   marco portada intactos). Selectores de la letra: los que no
+   matcheen con el DOM actual no pintan (no rompe). Se añaden los
+   de las letras de YTMDA (.ytmd-lyric-line) que SÍ existen en
+   extras.ts y se activan con el panel de letras de la app.
+   ============================================================ */
+
+/* Estrofas largas: el nowrap nativo de YT provoca el recorte por
+   ambos lados. Forzamos wrap normal en el panel de letras. */
+.ytmusic-description-shelf-renderer,
+.ytmusic-description-shelf-renderer *,
+ytmusic-app .ytmd-lyrics .ytmd-lyric-line {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Estrofa MUY larga: riff-navigation.js pone .riff-long-line en la
+   linea activa y esta regla reduce tamaño + quita el scale para que
+   respire sin comerse los bordes. */
+ytmusic-app .riff-long-line,
+.description.ytmusic-description-shelf-renderer [active].riff-long-line,
+.ytmusic-description-shelf-renderer .active.riff-long-line {
+  font-size: 1.45rem !important;
+  transform: none !important;
+  line-height: 1.5 !important;
+}
+
+/* 1. ESTILADO EXCLUSIVO DEL PANEL DE LETRAS */
+ytmusic-player-page #tab-renderer[page-type="MUSIC_PAGE_TYPE_TRACK_LYRICS"],
+.ytmusic-description-shelf-renderer,
+
+/* --- chunk 665-796 --- */
+   11. PARTE 1 — BARRA DE PROGRESO (Fase 2, según Gemini)
+   Anexado: no toca letras/karaoke ni secciones 1-10.
+   Todo el efecto queda dentro de ytmusic-player-bar.
+   ============================================================ */
+#progress-bar.ytmusic-player-bar,
+tp-yt-paper-progress#progress {
+  --paper-progress-active-color: #ffffff !important;
+  --paper-progress-container-color: rgba(255, 255, 255, 0.15) !important;
+  height: 4px !important;
+  transition: height 0.2s ease;
+}
+
+#progress-bar.ytmusic-player-bar:hover,
+tp-yt-paper-progress#progress:hover {
+  height: 6px !important;
+}
+
+#sliderKnob.ytmusic-player-bar {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Re-anclaje de la player bar (defensivo): un style inline externo
+   (position:relative del boot viejo) puede soltarla de su dock del
+   fondo. Aseguramos su anclaje estandar.
+   EXCEPCION (via boxProbe): en modo video expandido la barra vive
+   DENTRO de #player-page (fixed), y nuestro bottom:0 re-ancla mal
+   al fondo del player-page (flotaba a media pantalla). Ahi YT
+   maneja su propio anclaje: lo dejamos intacto. */
+ytmusic-player-bar {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+}
+
+#player-page ytmusic-player-bar,
+ytmusic-player-page ytmusic-player-bar {
+  position: relative !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+}
+
+/* ============================================================
+   12. EXTENSION: BARRA DE PROGRESO SERPENTEANTE (ESTILO RIFF)
+   Corregida por Gemini: sin elementos duplicados (la barra es la
+   nativa #progress-bar; lo unico inyectado en la barra es el
+   canvas del visualizador). Onda solo en el tramo reproducido y
+   color unido al accent via --riff-primary-color.
+   ============================================================ */
+
+/* Bloque REALE (ids via progressDump): #progress-bar = paper-slider;
+   el tramo activo = #sliderBar #primaryProgress */
+#progress-bar.ytmusic-player-bar {
+  height: 18px !important;
+  background: transparent !important;
+  position: absolute !important;
+  top: -4px !important;
+  left: 0 !important;
+  width: 100% !important;
+}
+
+#progress-bar.ytmusic-player-bar #sliderBar {
+  --paper-progress-active-color: var(--riff-primary-color, #ffffff) !important;
+  --paper-progress-container-color: transparent !important;
+  height: 18px !important;
+  background: transparent !important;
+  overflow: visible !important;
+  /* Linea discreta del tramo no reproducido: 2px centrada (mismo eje que la onda) */
+  background-image: linear-gradient(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16));
+  background-size: 100% 2px;
+  background-position: 0 center;
+  background-repeat: no-repeat;
+}
+
+/* Track nativo: OCULTO — la raya por defecto de YT muere aqui */
+#progress-bar.ytmusic-player-bar #sliderBar #progressContainer {
+  height: 18px !important;
+  background-color: transparent !important;
+  overflow: visible !important;
+}
+
+/* La caja translucida muere: los wrappers del slider sin fondo */
+#progress-bar.ytmusic-player-bar #sliderContainer,
+#progress-bar.ytmusic-player-bar #sliderContainer.ring,
+#progress-bar.ytmusic-player-bar #sliderKnobContainer {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* El tramo lo dimensiona riff (.width): NO scaleX (mata el resorte) */
+#progress-bar.ytmusic-player-bar #sliderBar #primaryProgress {
+  transform: none !important;
+}
+
+/* Enmascarado de la onda serpenteante en el tramo activo */
+#progress-bar.ytmusic-player-bar #sliderBar #primaryProgress {
+  height: 12px !important;
+  background-color: var(--riff-primary-color, #ffffff) !important;
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 12" width="20" height="12"><path d="M0 6 Q 5 1, 10 6 T 20 6" fill="none" stroke="black" stroke-width="4" stroke-linecap="round"/></svg>') !important;
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 12" width="20" height="12"><path d="M0 6 Q 5 1, 10 6 T 20 6" fill="none" stroke="black" stroke-width="4" stroke-linecap="round"/></svg>') !important;
+  -webkit-mask-repeat: repeat-x !important;
+  mask-repeat: repeat-x !important;
+  -webkit-mask-size: 20px 12px !important;
+  mask-size: 20px 12px !important;
+  -webkit-mask-position: 0 center !important;
+  mask-position: 0 center !important;
+  filter: drop-shadow(0 0 6px var(--riff-primary-color, rgba(255, 255, 255, 0.5))) !important;
+}
+
+/* Animación gif: la maneja el draw del visualizador via JS
+   (mask-position en linear) — aqui sin keyframes para no pelear
+   con las !important de las reglas de arriba. */
+
+/* Capa de BUFFER de la cancion (la "caja"): OCULTA por decision de
+   Angel (2026-11-06): le gustaba mas sin buffer; si alguna vez se
+   quiere de vuelta: background-color var(--riff-primary-color),
+   opacity 0.16, height 2px, border-radius pildora */
+#progress-bar.ytmusic-player-bar #sliderBar #secondaryProgress {
+  background-color: transparent !important;
+  opacity: 0 !important;
+  display: none !important;
+}
+
+/* Ocultar el círculo nativo para evitar solapamiento feo */
+#sliderKnob.ytmusic-player-bar {
+  display: none !important;
+}
+
+/* ============================================================
+
+/* --- chunk 797-935 --- */
+   13. TRANSICIÓN SUAVE DE SECCIONES (FADE + SLIDE IN ESTILO RIFF)
+   Anexo no destructivo — no toca karaoke visualizador ni barra.
+   ============================================================ */
+
+@keyframes riffSectionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.995);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ALERTA 2026-11-06 (probe shelfProbe): con animation blanket en
+   browse-response/search-page/contents/notas, el contenedor colapsa
+   a HEIGHT 0 ( contenido en DOM pero pagina invisible). Revertido:
+   la entrada animada SOLO via .riff-page-enter (trigger JS) — la
+   classe SI apunta al mismo elemento pero la animacion corre bajo
+   control del navigation observer de YTM, no en blanket. */
+ytmusic-browse-response,
+ytmusic-search-page,
+ytmusic-tabbed-search-results-renderer,
+#browse-page,
+#contents.ytmusic-section-list-renderer,
+.riff-page-transition {
+  will-change: auto !important;
+  animation: none !important;
+}
+
+/* Entrada animada SOLO cuando el JS marca la navegacion */
+ytmusic-browse-response.riff-page-enter,
+#contents.ytmusic-section-list-renderer.riff-page-enter {
+  animation: riffSectionEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* ============================================================
+   14. TRANSICIONES EN TABS DEL PLAYER + MAXIMIZAR/MINIMIZAR
+   Anexo no destructivo (karaoke/onda/visualizer intactos).
+   OJO: riffFadeSlideIn necesita su propio keyframe (Gemini lo
+   referenciaba sin definirlo).
+   ============================================================ */
+
+@keyframes riffFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+#tab-renderer,
+ytmusic-tab-renderer,
+.description.ytmusic-description-shelf-renderer,
+.riff-animating-tab {
+  animation: riffFadeSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity, filter;
+}
+
+/* NOTA: ytmusic-player-page queda FUERA de la animacion base: al ser
+   overlay fixed con fill forwards, se quedaba "atornillada" a la
+   pantalla. Que solo anime via .riff-animating-tab si algun dia
+   volvemos a intentarlo. */
+
+/* Línea activa de sincronización (solo estilos visuales de texto)
+   transform-origin: center — con 'left' la línea se ve corrida a la
+   izquierda al pausar (el scale crecia solo hacia el lado izq). */
+.description.ytmusic-description-shelf-renderer [active],
+.ytmusic-description-shelf-renderer .active,
+[tab-type="LYRICS"] .active,
+ytmusic-app .ytmd-lyrics .ytmd-lyric-line.active {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 2.1rem !important;
+  line-height: 1.45 !important;
+  opacity: 1 !important;
+  text-align: center !important;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  margin-inline: auto;
+  transform: scale(1.03);
+  transform-origin: center center;
+  text-shadow:
+    0 0 12px var(--riff-accent-glow, rgba(255, 255, 255, 0.35)),
+    0 0 26px var(--riff-accent-glow, rgba(255, 255, 255, 0.2));
+  transition:
+    color 350ms cubic-bezier(0.2, 0, 0, 1),
+    font-size 350ms cubic-bezier(0.2, 0, 0, 1),
+    transform 350ms cubic-bezier(0.2, 0, 0, 1),
+    text-shadow 350ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 350ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+/* Líneas inactivas: suavizado y atenuación Riff */
+.description.ytmusic-description-shelf-renderer *:not([active]),
+.ytmusic-description-shelf-renderer p:not(.active),
+ytmusic-app .ytmd-lyrics .ytmd-lyric-line:not(.active) {
+  color: rgba(255, 255, 255, 0.42) !important;
+  font-size: 1.55rem !important;
+  line-height: 1.7 !important;
+  opacity: 1 !important;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  text-align: center !important;
+  margin-inline: auto;
+  transition:
+    color 350ms cubic-bezier(0.2, 0, 0, 1),
+    font-size 350ms cubic-bezier(0.2, 0, 0, 1),
+    text-shadow 350ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 350ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+/* Sin scroll horizontal en el panel de letras (recorte lateral) */
+ytmusic-player-page #tab-renderer[page-type="MUSIC_PAGE_TYPE_TRACK_LYRICS"],
+.ytmusic-description-shelf-renderer,
+ytmusic-app .ytmd-lyrics {
+  scroll-behavior: smooth !important;
+  overflow-x: hidden !important;
+}
+
+
+
+/* (testigo lime eliminado) */
+
+
+/* ============================================================
+   17b. COVER PAINTER-ONLY (franja sin blending, 2026-11-06):
+   NO toca el <img> del hero (todas las reglas directas colapsan
+   el armado incremental del browse). v1 (::after sin ancla en
+   #header) escalaba inset:0 al ancestro posicionado y tapo todo
+   el contenido. v2: ancla el overlay AL wrapper del fullbleed
+   (position relative) — la caja pequena del banner solamente. */
+ytmusic-fullbleed-thumbnail-renderer {
+  position: relative !important;
+}
+ytmusic-fullbleed-thumbnail-renderer img,
+ytmusic-hero-image-renderer img {
+  /* RE-TEST post-buster: el kill del img se evaluaba antes con el
+     scrimBuster activo (asesino real del render). Ahora, sin buster,
+     visibility directo deberia ser seguro. */
+  visibility: hidden !important;
+}
+ytmusic-fullbleed-thumbnail-renderer {
+  /* El header reservaba su altura para el hero (h382) — sin imagen
+     quedar como espacio vacio. Colapso completo (el contenido baja
+     naturalmente hacia arriba). */
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* ============================================================
+   18. SEAMLESS FONDO (2026-11-06): la costura horizontal era el
+   degradado oscuro nativo (.background-gradient rgba(0,0,0,0.6)
+   -> negro) encima del ambient. Fuera — el ambient nuestro
+   transiciona solo hacia el contenido oscuro. Chunk al final:
+   gana por cascade, no depende de las secciones viejas. */
+.background-gradient {
+  background-image: none !important;
+  background: transparent !important;
+}
+#contents.ytmusic-section-list-renderer,
+ytmusic-browse-response {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* ============================================================
+   19. MAXIMIZAR SUAVE (2026-11-06): al expandir el now-playing a
+   pagina completa la transition se ve cortada (el reflow nativo
+   es instantaneo y choca con el ambient transition). Transicion
+   suave del overlay player-page en top/height. */
+ytmusic-player-page {
+  transition: top 260ms cubic-bezier(0.2, 0, 0, 1), height 260ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+/* ============================================================
+   20. MAXIMIZED PLAYER BG (2026-11-06) v4 — ELAMBIENTE DENTRO:
+   el fondo de la vista maximizada = el MISMO degradado del cover
+   (var --riff-ambient-solid) pintado como capa del player-page,
+   CON LOS MISMOS FILTROS del ::before global (los desajustes de
+   tono eran la causa de que se viera "otra imagen").
+   Se tapa por completo el home que pinta YTM detras y los
+   colores quedan coherentes con el resto de la app. */
+ytmusic-player-page {
+  background: transparent !important;
+}
+ytmusic-player-page #player-page {
+  background: transparent !important;
+}
+ytmusic-player-page::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: -24px !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  /* RIFF-AMBIENT COMBINADO: capa 1 = la PORTADA de la cancion
+     (var --riff-album-art, se public por cover) bien diffuminada,
+     capa 2 = el degradado del color primario encima. Cambia de
+     cancion => cambia el fondo con ella, mismo circuito del
+     visualizer. */
+  background-image: var(--riff-album-art, var(--riff-ambient-solid, none)), var(--riff-ambient-solid, var(--riff-primary, #5247d1)) !important;
+  background-size: cover, 100% 100% !important;
+  background-position: center, center !important;
+  background-repeat: no-repeat, no-repeat !important;
+  filter: blur(56px) saturate(1.35) brightness(0.62) !important;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0, 0, 0, 0) 100%);
+}
