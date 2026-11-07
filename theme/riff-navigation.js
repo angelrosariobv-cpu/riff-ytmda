@@ -119,13 +119,17 @@
           window.__riffAccentLog = 'rgb(' + r + ',' + g + ',' + b + ')';
         } catch (_) {}
       } else {
-        window.__riffAccent = { r: 82, g: 71, b: 209 }; // riff primary
+        // Sin bucket saturado => cover blanco/gris (el placeholder
+        // morado Riff saltaba). Frédérico pedido 2026-11-07: gris
+        // claro #c7c8ca en vez de morado.
+        const R = 199, G = 200, B = 202;
+        window.__riffAccent = { r: R, g: G, b: B };
         try {
-          document.documentElement.style.setProperty('--riff-accent', 'rgb(82,71,209)');
-          document.documentElement.style.setProperty('--riff-accent-glow', 'rgba(82,71,209,0.6)');
-          applyPrimaryColorToBar('rgb(82,71,209)');
-          window.__riffGlowCssKey = '82_71_209';
-          window.__riffAccentLog = 'rgb(82,71,209)';
+          document.documentElement.style.setProperty('--riff-accent', 'rgb(' + R + ',' + G + ',' + B + ')');
+          document.documentElement.style.setProperty('--riff-accent-glow', 'rgba(' + Math.round(R + (255 - R) * 0.45) + ',' + Math.round(G + (255 - G) * 0.45) + ',' + Math.round(B + (255 - B) * 0.45) + ',0.6)');
+          applyPrimaryColorToBar('rgb(' + R + ',' + G + ',' + B + ')');
+          window.__riffGlowCssKey = R + '_' + G + '_' + B;
+          window.__riffAccentLog = 'rgb(' + R + ',' + G + ',' + B + ')';
         } catch (_) {}
       }
     } catch (_) {
