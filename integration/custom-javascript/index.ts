@@ -148,6 +148,11 @@ export default class CustomJS extends Integration {
       const buf = Buffer.from(await res.arrayBuffer());
       const kind = buf[0] === 0x89 ? "png" : (buf[0] === 0x52 && buf[1] === 0x49) ? "webp" : "jpeg";
       const dataUrl = `data:image/${kind};base64,${buf.toString("base64")}`;
+      // COLOR EN LA PAGINA (pipeline historico — funciona: el CSP del
+      // webview de YT permite data: en img-src; probado 2026-11-06:
+      // push time cambia por cada cover). El intento de calcular en la
+      // ventana Main (v4) NO funciona: la ventana Main tiene su propio
+      // CSP que bloquea data: y https:// remotas ('load' en ambos).
       await wc.executeJavaScript(
         `window.__riffProcessAccent && window.__riffProcessAccent(${JSON.stringify(dataUrl)})`,
         true,
